@@ -27,10 +27,10 @@ for idxx = 1:100
     plot(matched_points(:,1),matched_points(:,2),'rx',...
         'DisplayName','matched points');
     title(num2str(idx));axis equal;
-    if exist('result')~=7
-        mkdir result
+    if exist('result_old')~=7
+        mkdir result_old
     end 
-    print(fig,fullfile(pwd,'result',sprintf('traj_%i.png',idx)),'-dpng')
+    print(fig,fullfile(pwd,'result_old',sprintf('traj_%i.png',idx)),'-dpng')
 %     print(fig,strcat('result_new/traj_',mat2str(idx)),'-dpng');
     hold off;
     close(fig);

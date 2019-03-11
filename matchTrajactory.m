@@ -1,12 +1,11 @@
 function [path_list,point_list] = matchTrajactory(trajactory,...
-    road_network,speed_limits,road_cells,road_ids_all,cell_size,grid_size)
-[rows_trajactory,~] = size(trajactory);
+    road_network,road_cells,road_ids_all,grid_size,...
+    cand_points_edges,historySpeeds,surroundingSpeeds,top_k)
+rows_trajactory = size(trajactory,1);
 assert(rows_trajactory>1,'A trajactory need to be more than one point!');
-search_radius = 0.1;
 % load('search_edges.mat');close all;figure;hold on;
 % plot([search_edges(:,4),search_edges(:,6)]',[search_edges(:,5),search_edges(:,7)]','k-');
 % axis equal;
-cand_points_edges = mapCandidate(trajactory,road_network,road_cells,road_ids_all,search_radius,cell_size,grid_size);
 [G,node_table,road_network] = cutGridforTrajactory(reshape(cand_points_edges(:,3,:),[],1),trajactory,road_cells,road_ids_all,road_network,grid_size,20);
 % fprintf('Building graph done!\n');
 % Find matched sequence
@@ -14,10 +13,10 @@ cand_points_edges = mapCandidate(trajactory,road_network,road_cells,road_ids_all
 %% first round
 % cand_points_prev = cell2mat(trajactory.CandidatePoints(1));
 % cand_edges_prev = cell2mat(trajactory.CandidateEdges(1));
-cand_points_prev = cand_points_edges(:,1:2,1);
-cand_edges_prev = cand_points_edges(:,3,1);
-sample_point_prev = [trajactory(1,3) trajactory(1,4)];
-[cand_points_prev_row,~] = size(cand_points_prev);
+cand_points_prev = cand_points_edges(1:top_k,1:2);
+cand_edges_prev = cand_points_edges(1:top_k,3);
+sample_point_prev = trajactory(1,3:6);
+cand_points_prev_row = size(cand_points_prev,1);
 f_prev = zeros(1,cand_points_prev_row);
 for cand_idx = 1 : cand_points_prev_row
     % initialize first round scores with fcnNormal
@@ -31,20 +30,19 @@ parent_table.path = cell(0);
 for sample_idx = 2:rows_trajactory
     %     fprintf('sample idx:%i \n',sample_idx);
     %     f_prev
-    delta_t = trajactory(sample_idx,2) - trajactory(sample_idx-1,2);
-    sample_point_cur = [trajactory(sample_idx,3),...
-        trajactory(sample_idx,4)];
-    cand_points_cur = cand_points_edges(:,1:2,sample_idx);
-    cand_edges_cur =  cand_points_edges(:,3,sample_idx);
-    [cand_points_cur_row,~] = size(cand_points_cur);
+    sample_point_cur = trajactory(sample_idx,[3:6,2]);
+    cand_points_cur = cand_points_edges(top_k*(sample_idx-1)+1:top_k*sample_idx,1:2);
+    cand_edges_cur =  cand_points_edges(top_k*(sample_idx-1)+1:top_k*sample_idx,3);
+    surroundingSpeeds_cur = surroundingSpeeds(top_k*(sample_idx-1)+1:top_k*sample_idx,:);
+    cand_points_cur_row = size(cand_points_cur,1);
     f_cur = zeros(1,cand_points_cur_row);
     for idx_cur = 1 : length(f_cur)
         cur_max = -Inf;
         for idx_prev = 1: length(f_prev)
             [new_score,path_edges] = fcnSpatialTemporal(cand_points_prev(idx_prev,:),...
                 cand_points_cur(idx_cur,:),sample_point_prev,sample_point_cur,...
-                delta_t,cand_edges_prev(idx_prev),cand_edges_cur(idx_cur),...
-                G,node_table,road_network,speed_limits);
+                cand_edges_prev(idx_prev),cand_edges_cur(idx_cur),...
+                G,node_table,road_network,historySpeeds,surroundingSpeeds_cur(idx_cur));
             alt = f_prev(idx_prev) + new_score;
             if alt > cur_max
                 %                  fprintf('sample:%i,idx_cur:%i,idx_prev:%i,',sample_idx,idx_cur,idx_prev);

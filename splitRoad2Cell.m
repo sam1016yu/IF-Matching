@@ -1,4 +1,4 @@
-function [road_network,speed_limits,road_cells,road_ids,grid_size] = splitRoad2Cell(filename,cell_size)
+function [road_network,road_cells,road_ids,grid_size] = splitRoad2Cell(filename,cell_size)
 % filename: the raw txt file of road network, in required format
 % grid size: the desired grid size (in km)
 %% read raw text file of road network
@@ -9,10 +9,7 @@ dataArray = textscan(fileID, formatSpec, 'Delimiter',delimiter, 'TextType',...
     'string', 'EmptyValue', NaN,  'ReturnOnError', false);
 fclose(fileID);
 road_network = [dataArray{1:end-2}];
-road_type = dataArray{end-1};
-road_type = cellstr(road_type);
 clearvars delimiter formatSpec fileID dataArray ans;
-speed_limits = getSpeedLimits(road_type);
 %% cut grids
 % determining 4 points on the edges
 lon_max = max(max(road_network(:,4)),max(road_network(:,6)));
@@ -124,22 +121,4 @@ function [test_lon,test_lat] = divideEdges(edges,lon_grid,lat_grid)
         end
     end
     test_lon = sort(test_lon); test_lat = sort(test_lat);
-end
-
-function [speed_limits] = getSpeedLimits(road_types)
-%Get speed limit of each road type
-    limitsOfType = containers.Map('KeyType','char','ValueType','double');
-    limitsOfType('tertiary') = 40;
-    limitsOfType('residential') = 30;
-    limitsOfType('primary') = 60;
-    limitsOfType('secondary') = 40;
-    limitsOfType('service') = 30;
-    limitsOfType('trunk') = 90;
-    limitsOfType('unclassified') = 40;
-    limitsOfType('#') = 40;
-    limitsOfType('motorway') = 120;
-    speed_limits = cellfun(@(type) limitsOfType(type),road_types);
-%     for type_idx = 1:length(road_types)
-%         speed_limits(type_idx) = type2limit(road_types(type_idx));
-%     end
 end

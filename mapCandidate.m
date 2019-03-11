@@ -1,3 +1,22 @@
+function [cand_points_edges] = mapCandidate(trajactory,road_network,...
+    road_cells,road_ids_all,search_radius,cell_size,grid_size,top_k)
+% find all candidate points
+rows_trajactory = size(trajactory,1);
+cand_points_edges = zeros(top_k*rows_trajactory,3);
+for point_idx = 1:rows_trajactory
+    %     fprintf('Mapping candidates %i of %i \n',point_idx,height(trajactory));
+    lon = trajactory(point_idx,3);
+    lat = trajactory(point_idx,4);
+    [road_ids, candPoints] = getCandidatePoints(lon,lat,...
+        road_network,road_cells,road_ids_all,search_radius,cell_size,grid_size,top_k);
+    rows_idx = (5*point_idx-4):5*point_idx;
+    cand_points_edges(rows_idx,1:2) = candPoints;
+    cand_points_edges(rows_idx,3) = road_ids;
+end
+    trajactory = cell2mat(arrayfun(@(x) reshape(repmat(trajactory(:,x),1,top_k)',top_k*rows_trajactory,1),1:7,'UniformOutput',false));
+    cand_points_edges = [cand_points_edges trajactory];
+end
+
 function [road_ids,candidate_points] = getCandidatePoints(lon,lat,...
     road_network,road_cells,road_ids_all,search_radius,cell_size, grid_size,top_k)
 %find candidate points within radius r
@@ -33,13 +52,12 @@ for edge_idx = 1 : rows_candidate_edges
 end
 % hold off;
 % close all;
-[row_p,~] = size(candidate_points);
+row_p = size(candidate_points,1);
 if row_p > top_k
-    points = mat2cell(candidate_points,ones(1,row_p)); res_table = table(points,road_ids,flags);
-    res_table.distance = distance(fliplr(cell2mat(res_table.points)),repmat([lat lon],row_p,[]));
-    res_table = sortrows(res_table,{'distance','flags'},{'ascend','descend'});
-    candidate_points = cell2mat(res_table.points(1:top_k));
-    road_ids = res_table.road_ids(1:top_k);
+    res_table = [candidate_points,road_ids,1-flags,distance(fliplr(candidate_points),repmat([lat lon],row_p,1));];
+    res_table = sortrows(res_table,[5,4]);
+    candidate_points = res_table(1:top_k,1:2);
+    road_ids = res_table(1:top_k,3);
 end
 % h1 = plot(lon,lat,'ro');
 % h3 = text(candidate_points(:,1)',candidate_points(:,2)',{'1','2','3','4','5'});
@@ -114,7 +132,11 @@ if length(road_ids) < top_k
         for step_col = -search_steps:search_steps
             for step_row = -search_steps:search_steps
                 if isValidRowCol(center_row+step_row,center_col+step_col)
-                    road_ids = [road_ids road_ids_all{rowcol2cell(center_row+step_row,center_col+step_col),1}];
+                    roads_in_cell = road_ids_all{rowcol2cell(center_row+step_row,center_col+step_col),1};
+                    if ~isempty(roads_in_cell)
+                        road_ids = reshape(road_ids,1,[]);
+                        road_ids = [road_ids roads_in_cell];
+                    end
                 end
             end
         end
@@ -123,6 +145,5 @@ if length(road_ids) < top_k
     end
 end
 end
-
 
 

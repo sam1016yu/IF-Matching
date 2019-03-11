@@ -2,7 +2,7 @@ clear;clc;
 %% cutting road network to grid
 roadnetworkfilename = 'RoadNetwork_Beijing.txt';
 cell_size = 0.1;
-[road_network,speed_limits,road_cells,road_ids,grid_size] = splitRoad2Cell(roadnetworkfilename, cell_size);
+[road_network,road_cells,road_ids,grid_size] = splitRoad2Cell(roadnetworkfilename, cell_size);
 % save mat_road&cell.mat road_cells road_network cell_size grid_size...
 % road_ids speed_limits
 % load('mat_road&cell.mat');grid_size = [747 924];
@@ -12,8 +12,17 @@ gpsfilename = 'GPS_Beijing.txt';
 raw_gps_points = splitGPS2line(gpsfilename, 6, 5);
 % load('mat_GPS_Points.mat')
 fprintf('Load GPS points done!\n');
-% searching for candidate points
-% fetching GPS candidate points
+%% map candidate points
+search_radius = 0.1;top_k = 5;
+trajactory = raw_gps_points(:,:);
+cand_points_edges = mapCandidate(trajactory,road_network,road_cells,...
+road_ids,search_radius,cell_size,grid_size,top_k);
+historySpeeds = mineHistorySpeed(trajactory,cand_points_edges);
+surroundingSpeeds = mineSurroundingSpeeds(cand_points_edges);
+% load('cand_points_edges.mat');
+% load('history_speeds.mat');
+% load('surroundingSpeeds.mat');
+%%
 trajactory_tags = unique(raw_gps_points(:,7));
 matched_trajactory = table(trajactory_tags);
 matched_trajactory.raw_points = cell(length(trajactory_tags),1);
@@ -21,6 +30,7 @@ matched_trajactory.matched_points = cell(length(trajactory_tags),1);
 matched_trajactory.edges = cell(length(trajactory_tags),1);
 fId = fopen('trajactory.log','w+');
 warning('off','all')
+rows_trajactory = size(raw_gps_points,1);
 for traj_idx = 1:100
 % for traj_idx = 1:length(trajactory_tags)
     try
@@ -30,16 +40,19 @@ for traj_idx = 1:100
             continue
         end
 % traj_idx = 76; 
-        traj_loc = raw_gps_points(:,7) == trajactory_tags(traj_idx);
+        traj_loc = find(raw_gps_points(:,7) == trajactory_tags(traj_idx));
         trajactory_to_match = raw_gps_points(traj_loc,:);
-        [path_result,point_result] = matchTrajactory(trajactory_to_match,road_network,speed_limits,road_cells,road_ids,cell_size,grid_size);
-        [rows_point,~] = size(point_result);
+        cand_points_trajac_segment = cand_points_edges((min(traj_loc)-1)*top_k+1:max(traj_loc)*top_k,:);
+        [path_result,point_result] = matchTrajactory(trajactory_to_match,road_network,...
+           road_cells,road_ids,grid_size,cand_points_trajac_segment,...
+           historySpeeds,surroundingSpeeds((min(traj_loc)-1)*top_k+1:max(traj_loc)*top_k,:),top_k);
+        rows_point = size(point_result,1);
         matched_trajactory.raw_points(traj_idx) = mat2cell(trajactory_to_match(:,3:4),rows_point);
         matched_trajactory.matched_points(traj_idx) = mat2cell(point_result,rows_point);
         matched_trajactory.edges(traj_idx) = mat2cell(path_result,length(path_result),1);
     catch e 
-        % for excepetion occured (e.g., only one point in a trajactory,
-        % no route find in graph...), catch it here and print in in log
+%         for excepetion occured (e.g., only one point in a trajactory,
+%         no route find in graph...), catch it here and print in in log
         fprintf(1,'Error:\n%s\n',e.message);
         fprintf(fId,'Error:\n%s\n',e.message);
         continue
